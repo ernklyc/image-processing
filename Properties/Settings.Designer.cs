@@ -8,7 +8,7 @@
 // </auto-generated>
 //------------------------------------------------------------------------------
 
-namespace bilgisayarli_gorme.Properties
+namespace ImageProcessing.Properties
 {
 
 

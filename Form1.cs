@@ -8,7 +8,7 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 
-namespace bilgisayarli_gorme
+namespace ImageProcessing
 {
     public partial class Form1 : Form
     {
@@ -133,6 +133,7 @@ namespace bilgisayarli_gorme
                 }
             }
 
+            kaynak.Dispose();
             if (pictureBox2.Image != null)
             {
                 pictureBox2.Image.Dispose();
@@ -168,6 +169,7 @@ namespace bilgisayarli_gorme
                 }
             }
 
+            kaynak.Dispose();
             if (pictureBox2.Image != null)
             {
                 pictureBox2.Image.Dispose();
@@ -352,6 +354,7 @@ namespace bilgisayarli_gorme
                 }
             }
 
+            kaynak.Dispose();
             if (pictureBox2.Image != null)
             {
                 pictureBox2.Image.Dispose();
@@ -456,9 +459,6 @@ namespace bilgisayarli_gorme
                     // Threshold uygula
                     gradyan = gradyan > threshold ? 255 : 0;
                     
-                    // 255'e normalize et
-                    gradyan = Math.Min(255, gradyan);
-                    
                     kenarlar[x, y] = gradyan;
                 }
             }
@@ -474,6 +474,7 @@ namespace bilgisayarli_gorme
                 }
             }
 
+            kaynak.Dispose();
             if (pictureBox2.Image != null)
             {
                 pictureBox2.Image.Dispose();
@@ -544,6 +545,7 @@ namespace bilgisayarli_gorme
             chart1.Series.Add(histogramSeries);
 
             // Gri görüntüyü göster
+            kaynak.Dispose();
             if (pictureBox2.Image != null)
             {
                 pictureBox2.Image.Dispose();
@@ -730,6 +732,7 @@ namespace bilgisayarli_gorme
                 }
             }
 
+            kaynak.Dispose();
             if (pictureBox2.Image != null)
             {
                 pictureBox2.Image.Dispose();
@@ -1055,6 +1058,7 @@ namespace bilgisayarli_gorme
                 }
             }
 
+            kaynak.Dispose();
             if (pictureBox2.Image != null)
             {
                 pictureBox2.Image.Dispose();
@@ -1172,10 +1176,15 @@ namespace bilgisayarli_gorme
                 int iterasyon = 0;
                 Dictionary<int, List<int>> kumeler = new Dictionary<int, List<int>>();
 
+                // Varyansları loop DIŞINDA tutuyoruz: her iterasyon önceki iterasyonun
+                // kümelerinden hesaplanan varyansı kullanır (ilk iterasyon için 1.0 başlar)
+                Dictionary<int, double> kumeVaryanslari = new Dictionary<int, double>();
+                for (int i = 0; i < k; i++) kumeVaryanslari[i] = 1.0;
+
                 do
                 {
                     degisimVar = false;
-                    
+
                     // Kümeleri temizle
                     kumeler.Clear();
                     for (int i = 0; i < k; i++)
@@ -1183,22 +1192,7 @@ namespace bilgisayarli_gorme
                         kumeler[i] = new List<int>();
                     }
 
-                    // Her kümenin varyansını hesapla
-                    Dictionary<int, double> kumeVaryanslari = new Dictionary<int, double>();
-                    for (int i = 0; i < k; i++)
-                    {
-                        if (kumeler[i].Count > 1)
-                        {
-                            double ortalama = kumeler[i].Average();
-                            kumeVaryanslari[i] = kumeler[i].Sum(x => Math.Pow(x - ortalama, 2)) / (kumeler[i].Count - 1);
-                        }
-                        else
-                        {
-                            kumeVaryanslari[i] = 1.0; // Başlangıç varyansı
-                        }
-                    }
-
-                    // Her pikseli en yakın kümeye ata
+                    // Her pikseli en yakın kümeye ata (önceki iterasyonun varyanslarıyla)
                     foreach (int griDeger in griDegerler)
                     {
                         int enYakinKume = 0;
@@ -1208,7 +1202,7 @@ namespace bilgisayarli_gorme
                         {
                             double varyans = kumeVaryanslari[i];
                             if (varyans < 0.0001) varyans = 0.0001; // Çok küçük varyansları önle
-                            
+
                             double uzaklik = Math.Abs(griDeger - merkezler[i]) / Math.Sqrt(varyans);
                             if (uzaklik < enKucukUzaklik)
                             {
@@ -1218,6 +1212,16 @@ namespace bilgisayarli_gorme
                         }
 
                         kumeler[enYakinKume].Add(griDeger);
+                    }
+
+                    // Bu iterasyonun kümelerine göre varyansları güncelle
+                    for (int i = 0; i < k; i++)
+                    {
+                        if (kumeler[i].Count > 1)
+                        {
+                            double ortalama = kumeler[i].Average();
+                            kumeVaryanslari[i] = kumeler[i].Sum(x => Math.Pow(x - ortalama, 2)) / (kumeler[i].Count - 1);
+                        }
                     }
 
                     // Yeni merkez noktalarını hesapla
@@ -1255,20 +1259,22 @@ namespace bilgisayarli_gorme
                                       $"({merkez.Deger},{merkez.Deger},{merkez.Deger})");
                 }
 
-                // Görüntüyü güncelle
+                // Görüntüyü güncelle (iterasyonla tutarlı: Mahalanobis uzaklığı kullan)
                 for (int x = 0; x < kaynak.Width; x++)
                 {
                     for (int y = 0; y < kaynak.Height; y++)
                     {
                         Color piksel = kaynak.GetPixel(x, y);
                         int griDeger = (piksel.R + piksel.G + piksel.B) / 3;
-                        
+
                         int enYakinMerkez = merkezler[0];
                         double enKucukUzaklik = double.MaxValue;
 
                         for (int i = 0; i < k; i++)
                         {
-                            double uzaklik = Math.Abs(griDeger - merkezler[i]);
+                            double varyans = kumeVaryanslari[i];
+                            if (varyans < 0.0001) varyans = 0.0001;
+                            double uzaklik = Math.Abs(griDeger - merkezler[i]) / Math.Sqrt(varyans);
                             if (uzaklik < enKucukUzaklik)
                             {
                                 enKucukUzaklik = uzaklik;
@@ -1281,6 +1287,7 @@ namespace bilgisayarli_gorme
                     }
                 }
 
+                kaynak.Dispose();
                 if (pictureBox2.Image != null)
                 {
                     pictureBox2.Image.Dispose();

@@ -1,4 +1,4 @@
-﻿namespace bilgisayarli_gorme
+﻿namespace ImageProcessing
 {
     partial class Form1
     {
